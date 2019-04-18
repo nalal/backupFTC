@@ -1,0 +1,15 @@
+{
+    "discord":{
+        "enabled": true,
+        "webhook": ""
+    },
+    "ssh":{
+        "username":"",
+        "host":"",
+        "port":22,
+        "ssh_key": ""
+    },
+    "remote":{
+        "expected_hostname":""
+    }
+}
