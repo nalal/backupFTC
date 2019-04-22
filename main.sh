@@ -1,13 +1,10 @@
 #!/bin/bash
 
-###
-# Variable Setup
-###
-discord_enable=$false
-discord_webhook=""
-ssh_username=""
-ssh_host=""
-ssh_port=""
+#Lets check these at the very start
+if [ ! -n "$BASH" ]; then
+    echo Please run this script $0 with bash
+    exit 1
+fi
 
 ##
 # Common Message Responces
@@ -17,36 +14,24 @@ Debug_Prefix="[Debug]"
 Error_Prefix="[Error]"
 Warn_Prefix="[Warn]"
 
-# This is coded to require Bash, sh Is not a valid shell!
-if [ ! -n "$BASH" ]; then
-    echo Please run this script $0 with bash
-    exit 1
+if ! [ -x "$(command -v jq)" ] || ! [ -x "$(command -v curl)" ]; then
+    sudo apt-get install -y jq curl || echo "$Error_Prefix apt-get failed to install requirements. Stopping..." && exit
 fi
 
-function Sanity_Check() {
-    #lets make sure we have the packages we need
-    if ! [ -x "$(command -v jq)" ]; then
-        if [ $1 = "--force-install"]; then
-            echo "$Warn_Prefix Force install enabled!"
-            pkg install -y jq
-        else
-            echo 'Error: jq is not installed.' >&2
-            exit 1
-        fi
-    fi
-    if ! [ -x "$(command -v curl)" ]; then
-        if [ $1 = "--force-install"]; then
-            echo "$Warn_Prefix Force install enabled!"
-            pkg install -y curl
-        else
-            echo 'Error: curl is not installed.' >&2
-            exit 1
-        fi
-    fi
+###
+# Variable Setup
+###
 
+Discord_Enable="$(cat config.json | jq '.discord.enabled')"
+Discord_Webhook="$(cat config.json | jq '.discord.webhook')"
+SSH_Username=$(cat config.json | jq --raw-output '.ssh.username')
+SSH_Host="$(cat config.json | jq --raw-output '.ssh.host')"
+SSH_Port="$(cat config.json | jq '.ssh.port')"
+SSH_Key="$(cat config.json | jq --raw-output '.ssh.ssh_key')"
+Remote_Hostname="$(cat config.json | jq --raw-output '.remote.expected_hostname')"
+
+function Sanity_Check() {
     #Check if Discord is enabled and configured correctly
-    local Discord_isEnabled="$(cat config.json | jq '.discord.enabled')"
-    local Discord_Webhook="$(cat config.json | jq '.discord.webhook')"
 
     if [ "$Discord_isEnabled" = true ]; then
         if [ -z "$Discord_Webhook" ]; then
@@ -62,11 +47,6 @@ function Sanity_Check() {
     fi
 
     # Check if we can SSH
-    local SSH_Username=$(cat config.json | jq --raw-output '.ssh.username')
-    local SSH_Host="$(cat config.json | jq --raw-output '.ssh.host')"
-    local SSH_Port="$(cat config.json | jq '.ssh.port')"
-    local SSH_Key="$(cat config.json | jq --raw-output '.ssh.ssh_key')"
-    local Remote_Hostname="$(cat config.json | jq --raw-output '.remote.expected_hostname')"
 
     local CheckSSH=$(ssh -p $SSH_Port -i $SSH_Key $SSH_Username@$SSH_Host hostname)
     if [ "${CheckSSH}" == "${Remote_Hostname}" ]; then
@@ -82,10 +62,17 @@ function Discord_SendWebhookMsg() {
     # Requires Arguements: 2
     # $1 Should we mention @Administrator?
     # $2 Should return the message
-    # Example: Discord_SendWebhookMsg "Yes" "[19/04/2019]@[10:47]Backup failed." 
+    # Example: Discord_SendWebhookMsg "yes" "[19/04/2019]@[10:47]Backup failed."
     if [ $# -ne 2 ]; then
         echo 1>&2 "Usage: Discord_SendWebhookMsg() NotifyAdmins(boolean) Message(string)"
         exit 1
+    fi
+    NotifyAdmin="${echo $1 | tr '[:upper:]' '[:lower:]'}"
+    if [ $NotifyAdmin == "true" ] || [ $NotifyAdmin == "yes" ]; then
+        local message=""
+        curl -H "Content-Type: application/json" \
+        -X POST \
+        -d '{"username": "Backup Script", "content": "hello"}' $url
     fi
 }
 
